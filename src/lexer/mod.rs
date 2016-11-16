@@ -5,7 +5,7 @@ pub enum Tok {
     Num(i32),
     Var(String),
     And, Or, True, False, Eqs, Less, 
-    Plus, Minus, Assgn, Semi,
+    Plus, Minus, Times, Assgn, Semi,
     LParen, RParen, LBrace, RBrace,
     If, Then, Else, While, Do, Skip,
 }
@@ -77,6 +77,7 @@ impl <I: Iterator<Item=char>> Lexer<I> {
                 '<' => Some(Tok::Less),
                 '+' => Some(Tok::Plus),
                 '-' => Some(Tok::Minus),
+                '*' => Some(Tok::Times),
                 ':' => { self.iter.next(); Some(Tok::Assgn) },
                 '(' => Some(Tok::LParen),
                 ')' => Some(Tok::RParen),
@@ -91,8 +92,6 @@ impl <I: Iterator<Item=char>> Lexer<I> {
 
 #[test]
 fn test_simple() {
-    use lexer::Tok;
-
     let s = String::from("x := 42");
     let mut lx = Lexer::new(s.chars());
     let toks = lx.lex();
@@ -106,8 +105,6 @@ fn test_simple() {
 
 #[test]
 fn test_complex() {
-    use lexer::Tok;
-
     let s = String::from("if(3=2)then{hello:=42;world:=42}");
     let mut lx = Lexer::new(s.chars());
     let toks = lx.lex();
