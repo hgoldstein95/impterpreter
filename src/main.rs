@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 
 mod lexer;
 mod parser;
@@ -10,12 +10,16 @@ use interpreter::Interpreter;
 
 fn main() {
     println!("Type IMP programs for interpretation.");
-    print!("> ");
-    let mut input = String::new();
-    try!(io::stdin().read_line(&mut input));
 
-    let l = Lexer::new(input.trim().chars());
-    let p = Parser::new(l.lex().into_iter());
-    let i = Interpreter::new();
-    println!("{:?}", i.eval(p.parse()));
+    loop {
+        print!("> ");
+        io::stdout().flush().ok();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).ok();
+        let mut l = Lexer::new(input.trim().chars());
+        let mut p = Parser::new(l.lex().into_iter());
+        let mut i = Interpreter::new();
+        i.eval(&p.parse());
+        println!("{:?}", i.store());
+    }
 }

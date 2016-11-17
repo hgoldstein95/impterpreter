@@ -28,6 +28,24 @@ pub enum Com {
     If(Box<Bexp>, Box<Com>, Box<Com>),
     While(Box<Bexp>, Box<Com>),
 }
+/*
+EBNF Grammar
+
+aexp ::= term | term + term | term - term
+term ::= fact | fact * fact
+fact ::= n | x | ( aexp )
+
+bexp ::= cond | cond and cond
+cond ::= rel | rel or rel
+rel  ::= true | false | aexp = aexp | aexp < aexp
+
+com  ::= exp | exp ; exp
+exp  ::= skip
+       | x := aexp
+       | if bexp then com else com
+       | while bexp do com
+       | { com }
+*/
 
 pub struct Parser<I: Iterator<Item=Tok>> {
     iter: Peekable<I>,
@@ -131,19 +149,19 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
     }
 
     pub fn parse(&mut self) -> Com {
-        let e = self.parse_ex();
+        let e = self.parse_exp();
         if !self.peek_one_of(vec![Tok::Semi]) {
             return e; // Early return
         }
         let tok = self.iter.next().unwrap(); // won't panic, op_next == true
         match tok {
             Tok::Semi => 
-                Com::Seq(Box::new(e), Box::new(self.parse_ex())),
+                Com::Seq(Box::new(e), Box::new(self.parse_exp())),
             _ => e,
         }
     }
 
-    fn parse_ex(&mut self) -> Com {
+    fn parse_exp(&mut self) -> Com {
         // want to panic if there is nothing left
         match self.iter.next().unwrap() {
             Tok::Skip => Com::Skip,
