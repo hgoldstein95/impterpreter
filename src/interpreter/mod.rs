@@ -41,7 +41,10 @@ impl Interpreter {
 
         match c {
             &Skip => (),
-            &Seq(ref c1, ref c2) => { self.eval(c1); self.eval(c2) },
+            &Seq(ref c1, ref c2) => {
+                self.eval(c1);
+                self.eval(c2)
+            },
             &Assgn(ref s, ref a) => {
                 let n = self.eval_aexp(a);
                 self.store.insert(s.clone(), n);
@@ -53,9 +56,9 @@ impl Interpreter {
                     self.eval(c2)
                 }
             },
-            &While(ref b, ref c1) => {
+            &While(ref b, ref c_body) => {
                 if self.eval_bexp(b) {
-                    self.eval(c1);
+                    self.eval(c_body);
                     self.eval(c)
                 }
             },

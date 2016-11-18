@@ -33,18 +33,18 @@ EBNF Grammar
 
 aexp ::= term | term + term | term - term
 term ::= fact | fact * fact
-fact ::= n | x | ( aexp )
+fact ::= n | var | ( aexp )
 
 bexp ::= cond | cond and cond
 cond ::= rel | rel or rel
 rel  ::= true | false | aexp = aexp | aexp < aexp
 
-com  ::= exp | exp ; exp
+com  ::= exp | exp ; com
 exp  ::= skip
-       | x := aexp
-       | if bexp then com else com
-       | while bexp do com
-       | { com }
+       | var := aexp
+       | if bexp then body else body
+       | while bexp do body
+body ::= exp | { com }
 */
 
 pub struct Parser<I: Iterator<Item=Tok>> {
@@ -58,23 +58,23 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
 
     fn peek_one_of(&mut self, list: Vec<Tok>) -> bool {
         if let Some(tok) = self.iter.peek() {
-            list.contains(tok)
-        } else {
-            false
+            return list.contains(tok)
         }
+        false
+    }
+
+    fn consume(&mut self, t: Tok) {
+        assert_eq!(Some(t), self.iter.next())
     }
 
     fn parse_aexp(&mut self) -> Aexp {
         let t = self.parse_term();
         if !self.peek_one_of(vec![Tok::Plus, Tok::Minus]) {
-            return t; // Early return
+            return t
         }
-        let tok = self.iter.next().unwrap(); // won't panic, op_next == true
-        match tok {
-            Tok::Plus => 
-                Aexp::Add(Box::new(t), Box::new(self.parse_term())),
-            Tok::Minus =>
-                Aexp::Sub(Box::new(t), Box::new(self.parse_term())),
+        match self.iter.next().unwrap() { // won't panic, op_next == true
+            Tok::Plus => Aexp::Add(Box::new(t), Box::new(self.parse_term())),
+            Tok::Minus => Aexp::Sub(Box::new(t), Box::new(self.parse_term())),
             _ => t,
         }
     }
@@ -82,12 +82,10 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
     fn parse_term(&mut self) -> Aexp {
         let f = self.parse_factor();
         if !self.peek_one_of(vec![Tok::Times]) {
-            return f; // Early return
+            return f
         }
-        let tok = self.iter.next().unwrap(); // won't panic, op_next == true
-        match tok {
-            Tok::Times => 
-                Aexp::Mul(Box::new(f), Box::new(self.parse_term())),
+        match self.iter.next().unwrap() { // won't panic, op_next == true
+            Tok::Times => Aexp::Mul(Box::new(f), Box::new(self.parse_term())),
             _ => f,
         }
     }
@@ -99,7 +97,7 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
             Tok::Var(x) => Aexp::Var(x),
             Tok::LParen => {
                 let e = self.parse_aexp();
-                self.iter.next();
+                self.consume(Tok::RParen);
                 e
             },
             _ => panic!("No factor to parse."),
@@ -109,12 +107,10 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
     fn parse_bexp(&mut self) -> Bexp {
         let c = self.parse_cond();
         if !self.peek_one_of(vec![Tok::And]) {
-            return c; // Early return
+            return c
         }
-        let tok = self.iter.next().unwrap(); // won't panic, op_next == true
-        match tok {
-            Tok::And => 
-                Bexp::And(Box::new(c), Box::new(self.parse_cond())),
+        match self.iter.next().unwrap() { // won't panic, op_next == true
+            Tok::And => Bexp::And(Box::new(c), Box::new(self.parse_cond())),
             _ => c,
         }
     }
@@ -122,12 +118,10 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
     fn parse_cond(&mut self) -> Bexp {
         let r = self.parse_rel();
         if !self.peek_one_of(vec![Tok::Or]) {
-            return r; // Early return
+            return r
         }
-        let tok = self.iter.next().unwrap(); // won't panic, op_next == true
-        match tok {
-            Tok::Or => 
-                Bexp::Or(Box::new(r), Box::new(self.parse_rel())),
+        match self.iter.next().unwrap() { // won't panic, op_next == true
+            Tok::Or => Bexp::Or(Box::new(r), Box::new(self.parse_rel())),
             _ => r,
         }
     }
@@ -151,12 +145,10 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
     pub fn parse(&mut self) -> Com {
         let e = self.parse_exp();
         if !self.peek_one_of(vec![Tok::Semi]) {
-            return e; // Early return
+            return e
         }
-        let tok = self.iter.next().unwrap(); // won't panic, op_next == true
-        match tok {
-            Tok::Semi => 
-                Com::Seq(Box::new(e), Box::new(self.parse_exp())),
+        match self.iter.next().unwrap() {// won't panic, op_next == true
+            Tok::Semi => Com::Seq(Box::new(e), Box::new(self.parse())),
             _ => e,
         }
     }
@@ -166,29 +158,35 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         match self.iter.next().unwrap() {
             Tok::Skip => Com::Skip,
             Tok::Var(x) => {
-                self.iter.next(); // consume :=
+                self.consume(Tok::Assgn);
                 Com::Assgn(x, Box::new(self.parse_aexp()))
             },
             Tok::If => {
                 let b = self.parse_bexp();
-                self.iter.next(); // consume then
-                let c1 = self.parse();
-                self.iter.next(); // consume else
-                let c2 = self.parse();
+                self.consume(Tok::Then);
+                let c1 = self.parse_body();
+                self.consume(Tok::Else);
+                let c2 = self.parse_body();
                 Com::If(Box::new(b), Box::new(c1), Box::new(c2))
             },
             Tok::While => {
                 let b = self.parse_bexp();
-                self.iter.next(); // consume do
-                let c = self.parse();
+                self.consume(Tok::Do);
+                let c = self.parse_body();
                 Com::While(Box::new(b), Box::new(c))
             },
-            Tok::LBrace => {
-                let com = self.parse();
-                self.iter.next();
-                com
-            },
-            _ => panic!("No ex to parse."),
+            _ => panic!("No exp to parse."),
+        }
+    }
+
+    fn parse_body(&mut self) -> Com {
+        if self.peek_one_of(vec![Tok::LBrace]) {
+            self.consume(Tok::LBrace);
+            let c = self.parse();
+            self.consume(Tok::RBrace);
+            c
+        } else {
+            self.parse_exp()
         }
     }
 }
