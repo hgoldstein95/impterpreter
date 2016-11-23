@@ -1,61 +1,85 @@
+//! The parser module.
+//!
+//! # EBNF Grammar
+//! 
+//! aexp ::= term | term + term | term - term
+//! term ::= fact | fact * fact
+//! fact ::= n | var | ( aexp )
+//! 
+//! bexp ::= cond | cond and cond
+//! cond ::= rel | rel or rel
+//! rel  ::= true | false | aexp = aexp | aexp < aexp
+//! 
+//! com  ::= exp | exp ; com
+//! exp  ::= skip
+//!        | var := aexp
+//!        | if bexp then body else body
+//!        | while bexp do body
+//! body ::= exp | { com }
+
 use std::iter::Peekable;
 use lexer::Tok;
 
+/// The `Aexp` type. Represents an arithmetic expression.
 #[derive(Debug, PartialEq)]
 pub enum Aexp {
+    /// An integer.
     Num(i32),
+    /// A variable.
     Var(String),
+    /// The sum of two arithmetic expressions.
     Add(Box<Aexp>, Box<Aexp>),
+    /// The difference of two arithmetic expressions.
     Sub(Box<Aexp>, Box<Aexp>),
+    /// The product of two arithmetic expressions.
     Mul(Box<Aexp>, Box<Aexp>),
 }
 
+/// The `Bexp` type. Represents a binary expression.
 #[derive(Debug, PartialEq)]
 pub enum Bexp {
+    /// True.
     True,
+    /// False.
     False,
+    /// Equation of two arithmetic expressions.
     Eqs(Box<Aexp>, Box<Aexp>),
+    /// Less than relation on arithmetic expressions.
     Less(Box<Aexp>, Box<Aexp>),
+    /// Conjunction of binary expressions.
     And(Box<Bexp>, Box<Bexp>),
+    /// Disjunction of binary expressions.
     Or(Box<Bexp>, Box<Bexp>),
 }
 
+/// The `Com` type. Represents a command.
 #[derive(Debug, PartialEq)]
 pub enum Com {
+    /// The skip command; does nothing.
     Skip,
+    /// An ordering of one command after another.
     Seq(Box<Com>, Box<Com>),
+    /// Assignment of an arithmetic expresssion to a variable.
     Assgn(String, Box<Aexp>),
+    /// A branched statement.
     If(Box<Bexp>, Box<Com>, Box<Com>),
+    /// A loop statement.
     While(Box<Bexp>, Box<Com>),
 }
-/*
-EBNF Grammar
 
-aexp ::= term | term + term | term - term
-term ::= fact | fact * fact
-fact ::= n | var | ( aexp )
-
-bexp ::= cond | cond and cond
-cond ::= rel | rel or rel
-rel  ::= true | false | aexp = aexp | aexp < aexp
-
-com  ::= exp | exp ; com
-exp  ::= skip
-       | var := aexp
-       | if bexp then body else body
-       | while bexp do body
-body ::= exp | { com }
-*/
-
+/// The `Parser` type. Parses a stream of tokens into an AST.
 pub struct Parser<I: Iterator<Item=Tok>> {
     iter: Peekable<I>,
 }
 
 impl <I: Iterator<Item=Tok>> Parser<I> {
+
+    /// Constructs a new `Parser`.
     pub fn new(i: I) -> Self {
         Parser { iter: i.peekable() }
     }
 
+    /// Checks if `self.iter.peek()` returns one of the elements in `list`.
     fn peek_one_of(&mut self, list: Vec<Tok>) -> bool {
         if let Some(tok) = self.iter.peek() {
             return list.contains(tok)
@@ -63,10 +87,16 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         false
     }
 
+    /// Consumes the first token in `self.iter`.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the iterator does not start with the expected element.
     fn consume(&mut self, t: Tok) {
         assert_eq!(Some(t), self.iter.next())
     }
 
+    /// Parses the nonterminal <i>aexp</i>.
     fn parse_aexp(&mut self) -> Aexp {
         let t = self.parse_term();
         if !self.peek_one_of(vec![Tok::Plus, Tok::Minus]) {
@@ -79,8 +109,9 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         }
     }
 
+    /// Parses the nonterminal <i>term</i>.
     fn parse_term(&mut self) -> Aexp {
-        let f = self.parse_factor();
+        let f = self.parse_fact();
         if !self.peek_one_of(vec![Tok::Times]) {
             return f
         }
@@ -90,7 +121,12 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         }
     }
 
-    fn parse_factor(&mut self) -> Aexp {
+    /// Parses the nonterminal <i>fact</i>.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if `self.iter` is empty, or if no factor can be parsed.
+    fn parse_fact(&mut self) -> Aexp {
         // want to panic if there is nothing left
         match self.iter.next().unwrap() {
             Tok::Num(n) => Aexp::Num(n),
@@ -104,6 +140,7 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         }
     }
 
+    /// Parses the nonterminal <i>bexp</i>.
     fn parse_bexp(&mut self) -> Bexp {
         let c = self.parse_cond();
         if !self.peek_one_of(vec![Tok::And]) {
@@ -115,6 +152,7 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         }
     }
 
+    /// Parses the nonterminal <i>cond</i>.
     fn parse_cond(&mut self) -> Bexp {
         let r = self.parse_rel();
         if !self.peek_one_of(vec![Tok::Or]) {
@@ -126,6 +164,11 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         }
     }
 
+    /// Parses the nonterminal <i>rel</i>.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if `self.iter` is empty, or if no rel can be parsed.
     fn parse_rel(&mut self) -> Bexp {
         if self.peek_one_of(vec![Tok::True, Tok::False]) {
             return match self.iter.next().unwrap() {
@@ -142,6 +185,7 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         }
     }
 
+    /// Parses the nonterminal <i>com</i>.
     pub fn parse(&mut self) -> Com {
         let e = self.parse_exp();
         if !self.peek_one_of(vec![Tok::Semi]) {
@@ -153,6 +197,11 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         }
     }
 
+    /// Parses the nonterminal <i>exp</i>.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if `self.iter` is empty, or if no exp can be parsed.
     fn parse_exp(&mut self) -> Com {
         // want to panic if there is nothing left
         match self.iter.next().unwrap() {
@@ -179,6 +228,7 @@ impl <I: Iterator<Item=Tok>> Parser<I> {
         }
     }
 
+    /// Parses the nonterminal <i>body</i>.
     fn parse_body(&mut self) -> Com {
         if self.peek_one_of(vec![Tok::LBrace]) {
             self.consume(Tok::LBrace);

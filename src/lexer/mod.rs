@@ -1,8 +1,11 @@
 use std::iter::Peekable;
 
+/// The `Tok` type. Represents a single token of the IMP language.
 #[derive(Debug, PartialEq)]
 pub enum Tok {
+    /// An integer; this it the only numeric type recognized in IMP.
     Num(i32),
+    /// A variable, represented by any non-reserved alphanumeric string.
     Var(String),
     And, Or, True, False, Eqs, Less, 
     Plus, Minus, Times, Assgn, Semi,
@@ -10,16 +13,19 @@ pub enum Tok {
     If, Then, Else, While, Do, Skip,
 }
 
+/// The `Lexer` type. Lexes a stream of chars into a vector of tokens.
 pub struct Lexer<I: Iterator<Item=char>> {
     iter: Peekable<I>,
 }
 
 impl <I: Iterator<Item=char>> Lexer<I> {
 
+    /// Constructs a new `Lexer`.
     pub fn new(i: I) -> Self {
         Lexer { iter: i.peekable() }
     }
 
+    /// Generates a vector of tokens from the iterator stored in the lexer.
     pub fn lex(&mut self) -> Vec<Tok> {
         let mut toks = Vec::new();
         while let Some(&c) = self.iter.peek() {
@@ -35,6 +41,11 @@ impl <I: Iterator<Item=char>> Lexer<I> {
         toks
     }
 
+    /// Lexes a number from the iterator.
+    ///
+    /// # Panics
+    /// 
+    /// May panic if a valid number cannot be read from the iterator.
     fn lex_num(&mut self) -> Tok {
         let mut s: String = String::new();
         while let Some(&c) = self.iter.peek() {
@@ -48,6 +59,9 @@ impl <I: Iterator<Item=char>> Lexer<I> {
         }
     }
 
+    /// Lexes an alphanumeric string from the iterator.
+    ///
+    /// May be a reserved word `if`, `while`, etc. or a variable.
     fn lex_alph(&mut self) -> Tok {
         let mut s: String = String::new();
         while let Some(&c) = self.iter.peek() {
@@ -70,6 +84,7 @@ impl <I: Iterator<Item=char>> Lexer<I> {
         }
     }
 
+    /// Lexes a symbol from the iterator, or discards unrecognized characters.
     fn lex_sym(&mut self) -> Option<Tok> {
         self.iter.next().and_then(|c|
             match c {

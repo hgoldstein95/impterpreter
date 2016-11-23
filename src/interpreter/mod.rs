@@ -1,16 +1,23 @@
 use std::collections::HashMap;
 use parser::{Aexp, Bexp, Com};
 
+/// The `Interpreter` type. Interprets an AST to a map of values.
 pub struct Interpreter {
     store: HashMap<String, i32>,
 }
 
 impl Interpreter {
 
+    /// Constructs a new `Interpreter`.
     pub fn new() -> Self {
         Interpreter { store: HashMap::new() }
     }
 
+    /// Evaluates an arithmetic expression.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if an unbound variable is encountered.
     fn eval_aexp(&mut self, a: &Aexp) -> i32 {
         use parser::Aexp::*;
 
@@ -23,6 +30,7 @@ impl Interpreter {
         }
     }
 
+    /// Evaluates a binary expression.
     fn eval_bexp(&mut self, b: &Bexp) -> bool {
         use parser::Bexp::*;
 
@@ -36,6 +44,7 @@ impl Interpreter {
         }
     }
 
+    /// Evaluates a command.
     pub fn eval(&mut self, c: &Com) {
         use parser::Com::*;
 
@@ -65,6 +74,7 @@ impl Interpreter {
         }
     }
 
+    /// Returns a copy of the store.
     pub fn store(&self) -> HashMap<String, i32> {
         self.store.clone()
     }

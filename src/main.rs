@@ -27,7 +27,6 @@ fn process(s: String) -> HashMap<String, i32> {
     let mut p = Parser::new(l.lex().into_iter());
     let mut i = Interpreter::new();
     let ast = p.parse();
-    println!("{:?}", ast);
     i.eval(&ast);
     i.store()
 }
