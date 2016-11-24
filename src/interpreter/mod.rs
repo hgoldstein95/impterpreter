@@ -81,7 +81,7 @@ impl Interpreter {
         match c {
             &Skip => Ok(()),
             &Seq(ref c1, ref c2) => {
-                self.eval(c1).and_then(|_| self.eval(c2).and(Ok(())))
+                self.eval(c1).and(self.eval(c2).and(Ok(())))
             }
             &Assgn(ref s, ref a) => {
                 self.eval_aexp(a).and_then(|n| {
@@ -101,7 +101,7 @@ impl Interpreter {
             &While(ref b, ref c_body) => {
                 self.eval_bexp(b).and_then(|v| {
                     if v {
-                        self.eval(c_body).and_then(|_| self.eval(c).and(Ok(())))
+                        self.eval(c_body).and(self.eval(c).and(Ok(())))
                     } else {
                         Ok(())
                     }
