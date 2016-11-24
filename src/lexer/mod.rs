@@ -1,3 +1,5 @@
+//! The lexer module.
+
 use std::iter::Peekable;
 
 /// The `Tok` type. Represents a single token of the IMP language.
@@ -7,19 +9,35 @@ pub enum Tok {
     Num(i32),
     /// A variable, represented by any non-reserved alphanumeric string.
     Var(String),
-    And, Or, True, False, Eqs, Less, 
-    Plus, Minus, Times, Assgn, Semi,
-    LParen, RParen, LBrace, RBrace,
-    If, Then, Else, While, Do, Skip,
+    And,
+    Or,
+    True,
+    False,
+    Eqs,
+    Less,
+    Plus,
+    Minus,
+    Times,
+    Assgn,
+    Semi,
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    If,
+    Then,
+    Else,
+    While,
+    Do,
+    Skip,
 }
 
 /// The `Lexer` type. Lexes a stream of chars into a vector of tokens.
-pub struct Lexer<I: Iterator<Item=char>> {
+pub struct Lexer<I: Iterator<Item = char>> {
     iter: Peekable<I>,
 }
 
-impl <I: Iterator<Item=char>> Lexer<I> {
-
+impl<I: Iterator<Item = char>> Lexer<I> {
     /// Constructs a new `Lexer`.
     pub fn new(i: I) -> Self {
         Lexer { iter: i.peekable() }
@@ -44,12 +62,14 @@ impl <I: Iterator<Item=char>> Lexer<I> {
     /// Lexes a number from the iterator.
     ///
     /// # Panics
-    /// 
+    ///
     /// May panic if a valid number cannot be read from the iterator.
     fn lex_num(&mut self) -> Tok {
         let mut s: String = String::new();
         while let Some(&c) = self.iter.peek() {
-            if !c.is_digit(10) { break }
+            if !c.is_digit(10) {
+                break;
+            }
             s.push(c);
             self.iter.next();
         }
@@ -65,7 +85,9 @@ impl <I: Iterator<Item=char>> Lexer<I> {
     fn lex_alph(&mut self) -> Tok {
         let mut s: String = String::new();
         while let Some(&c) = self.iter.peek() {
-            if !c.is_alphabetic() { break }
+            if !c.is_alphabetic() {
+                break;
+            }
             s.push(c);
             self.iter.next();
         }
@@ -86,22 +108,23 @@ impl <I: Iterator<Item=char>> Lexer<I> {
 
     /// Lexes a symbol from the iterator, or discards unrecognized characters.
     fn lex_sym(&mut self) -> Option<Tok> {
-        self.iter.next().and_then(|c|
-            match c {
-                '=' => Some(Tok::Eqs),
-                '<' => Some(Tok::Less),
-                '+' => Some(Tok::Plus),
-                '-' => Some(Tok::Minus),
-                '*' => Some(Tok::Times),
-                ':' => { self.iter.next(); Some(Tok::Assgn) },
-                '(' => Some(Tok::LParen),
-                ')' => Some(Tok::RParen),
-                '{' => Some(Tok::LBrace),
-                '}' => Some(Tok::RBrace),
-                ';' => Some(Tok::Semi),
-                _ => None,
+        self.iter.next().and_then(|c| match c {
+            '=' => Some(Tok::Eqs),
+            '<' => Some(Tok::Less),
+            '+' => Some(Tok::Plus),
+            '-' => Some(Tok::Minus),
+            '*' => Some(Tok::Times),
+            ':' => {
+                self.iter.next();
+                Some(Tok::Assgn)
             }
-        )
+            '(' => Some(Tok::LParen),
+            ')' => Some(Tok::RParen),
+            '{' => Some(Tok::LBrace),
+            '}' => Some(Tok::RBrace),
+            ';' => Some(Tok::Semi),
+            _ => None,
+        })
     }
 }
 
