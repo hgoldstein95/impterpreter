@@ -24,7 +24,7 @@ fn main() {
 }
 
 /// Interprets a string as an IMP program and returns the resulting store.
-fn process(s: String) -> Result<Store, String> {
+fn process(s: String) -> Result<Store, interpreter::Error> {
     let mut l = Lexer::new(s.chars());
     let mut p = Parser::new(l.lex().into_iter());
     let mut i = Interpreter::new();

@@ -1,9 +1,26 @@
 //! The interpreter module.
 
+use std::fmt::{self, Display};
 use std::collections::HashMap;
 use parser::{Aexp, Bexp, Com};
 
 pub type Store = HashMap<String, i32>;
+
+/// Error type for `Interpreter`.
+#[derive(Debug)]
+pub enum Error {
+    UnboundVariable(String),
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Error::UnboundVariable(ref s) => {
+                write!(f, "Unbound variable '{}'.", s)
+            }
+        }
+    }
+}
 
 /// The `Interpreter` type. Interprets an AST to a map of values.
 pub struct Interpreter {
@@ -17,7 +34,7 @@ impl Interpreter {
     }
 
     /// Evaluates an arithmetic expression.
-    fn eval_aexp(&mut self, a: &Aexp) -> Result<i32, String> {
+    fn eval_aexp(&mut self, a: &Aexp) -> Result<i32, Error> {
         use parser::Aexp::*;
 
         match a {
@@ -26,7 +43,7 @@ impl Interpreter {
                 if let Some(&n) = self.store.get(s) {
                     Ok(n)
                 } else {
-                    Err(format!("Unbound variable '{}'.", s))
+                    Err(Error::UnboundVariable(s.clone()))
                 }
             }
             &Add(ref a1, ref a2) => {
@@ -43,7 +60,7 @@ impl Interpreter {
     }
 
     /// Evaluates a binary expression.
-    fn eval_bexp(&mut self, b: &Bexp) -> Result<bool, String> {
+    fn eval_bexp(&mut self, b: &Bexp) -> Result<bool, Error> {
         use parser::Bexp::*;
 
         match b {
@@ -58,7 +75,7 @@ impl Interpreter {
     }
 
     /// Evaluates a command.
-    pub fn eval(&mut self, c: &Com) -> Result<(), String> {
+    pub fn eval(&mut self, c: &Com) -> Result<(), Error> {
         use parser::Com::*;
 
         match c {
@@ -115,6 +132,15 @@ fn test_true() {
     let mut interp = Interpreter::new();
     let b = True;
     assert!(interp.eval_bexp(&b).unwrap());
+}
+
+#[test]
+fn test_unbound_variable() {
+    use parser::Aexp::Var;
+
+    let mut interp = Interpreter::new();
+    let a = Var(String::from("x"));
+    assert!(interp.eval_aexp(&a).is_err());
 }
 
 #[test]
