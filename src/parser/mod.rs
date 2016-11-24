@@ -15,8 +15,39 @@
 //!        | while bexp do body
 //! body ::= exp | { com }
 
+use std::fmt::{self, Display};
 use std::iter::Peekable;
 use lexer::Tok;
+
+/// Error type for `Parser`.
+#[derive(Debug)]
+pub enum Error {
+    WrongToken(Tok, Tok),
+    BadAexp,
+    BadBexp,
+    BadCom,
+    EndOfFile,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Error::WrongToken(ref t1, ref t2) => {
+                write!(f,
+                       "Consumed incorrect token. Expected '{:?}' found \
+                        '{:?}'.",
+                       t1,
+                       t2)
+            }
+            Error::BadAexp => write!(f, "Problem while parsing aexp."),
+            Error::BadBexp => write!(f, "Problem while parsing bexp."),
+            Error::BadCom => write!(f, "Problem while parsing com."),
+            Error::EndOfFile => {
+                write!(f, "Reached end of stream while parsing.")
+            }
+        }
+    }
+}
 
 /// The `Aexp` type. Represents an arithmetic expression.
 #[derive(Debug, PartialEq)]
@@ -77,127 +108,147 @@ impl<I: Iterator<Item = Tok>> Parser<I> {
     }
 
     /// Consumes the first token in `self.iter`.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the iterator does not start with the expected element.
-    fn consume(&mut self, t: Tok) {
-        assert_eq!(Some(t), self.iter.next())
+    /// Returns true if the token is the expected token, false otherwise.
+    fn consume(&mut self, t: Tok) -> Result<(), Error> {
+        if let Some(other) = self.iter.next() {
+            if t == other {
+                Ok(())
+            } else {
+                Err(Error::WrongToken(t, other))
+            }
+        } else {
+            Err(Error::EndOfFile)
+        }
     }
 
     /// Parses the nonterminal <i>aexp</i>.
-    fn parse_aexp(&mut self) -> Aexp {
-        let t = self.parse_term();
-        if !self.peek_one_of(vec![Tok::Plus]) {
-            return t;
-        }
-        match self.iter.next().unwrap() { // won't panic, op_next == true
-            Tok::Plus => Aexp::Add(Box::new(t), Box::new(self.parse_term())),
-            _ => t,
-        }
+    fn parse_aexp(&mut self) -> Result<Aexp, Error> {
+        self.parse_term().and_then(|t| {
+            if self.peek_one_of(vec![Tok::Plus]) {
+                match self.iter.next() {
+                    Some(Tok::Plus) => {
+                        self.parse_term().and_then(|t2| {
+                            Ok(Aexp::Add(Box::new(t), Box::new(t2)))
+                        })
+                    }
+                    _ => Ok(t),
+                }
+            } else {
+                Ok(t)
+            }
+        })
     }
 
     /// Parses the nonterminal <i>term</i>.
-    fn parse_term(&mut self) -> Aexp {
-        let f = self.parse_fact();
-        if !self.peek_one_of(vec![Tok::Times]) {
-            return f;
-        }
-        match self.iter.next().unwrap() { // won't panic, op_next == true
-            Tok::Times => Aexp::Mul(Box::new(f), Box::new(self.parse_term())),
-            _ => f,
-        }
+    fn parse_term(&mut self) -> Result<Aexp, Error> {
+        self.parse_fact().and_then(|f| {
+            if self.peek_one_of(vec![Tok::Times]) {
+                match self.iter.next() {
+                    Some(Tok::Times) => {
+                        self.parse_fact().and_then(|f2| {
+                            Ok(Aexp::Mul(Box::new(f), Box::new(f2)))
+                        })
+                    }
+                    _ => Ok(f),
+                }
+            } else {
+                Ok(f)
+            }
+        })
     }
 
     /// Parses the nonterminal <i>fact</i>.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if `self.iter` is empty, or if no factor can be parsed.
-    fn parse_fact(&mut self) -> Aexp {
-        // want to panic if there is nothing left
-        match self.iter.next().unwrap() {
-            Tok::Num(n) => Aexp::Num(n),
-            Tok::Var(x) => Aexp::Var(x),
-            Tok::LParen => {
-                let e = self.parse_aexp();
-                self.consume(Tok::RParen);
-                e
+    fn parse_fact(&mut self) -> Result<Aexp, Error> {
+        match self.iter.next() {
+            Some(Tok::Num(n)) => Ok(Aexp::Num(n)),
+            Some(Tok::Var(x)) => Ok(Aexp::Var(x)),
+            Some(Tok::LParen) => {
+                self.parse_aexp()
+                    .and_then(|e| self.consume(Tok::RParen).and(Ok(e)))
             }
-            _ => panic!("No factor to parse."),
+            None => Err(Error::EndOfFile),
+            _ => Err(Error::BadAexp),
         }
     }
 
     /// Parses the nonterminal <i>rel</i>.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if `self.iter` is empty, or if no rel can be parsed.
-    fn parse_bexp(&mut self) -> Bexp {
+    fn parse_bexp(&mut self) -> Result<Bexp, Error> {
         if self.peek_one_of(vec![Tok::True, Tok::False]) {
-            return match self.iter.next().unwrap() {
-                Tok::True => Bexp::True,
-                Tok::False => Bexp::False,
-                _ => panic!("Impossible statement reached."),
-            };
-        }
-        let a = self.parse_aexp();
-        match self.iter.next().unwrap() {
-            Tok::Less => Bexp::Less(Box::new(a), Box::new(self.parse_aexp())),
-            _ => panic!("Improper bexp"),
+            match self.iter.next() {
+                Some(Tok::True) => Ok(Bexp::True),
+                Some(Tok::False) => Ok(Bexp::False),
+                _ => panic!("Impossible state reached."),
+            }
+        } else {
+            self.parse_aexp().and_then(|a| {
+                match self.iter.next() {
+                    Some(Tok::Less) => {
+                        self.parse_aexp().and_then(|a2| {
+                            Ok(Bexp::Less(Box::new(a), Box::new(a2)))
+                        })
+                    }
+                    None => Err(Error::EndOfFile),
+                    _ => Err(Error::BadBexp),
+                }
+            })
         }
     }
 
     /// Parses the nonterminal <i>com</i>.
-    pub fn parse(&mut self) -> Com {
-        let e = self.parse_exp();
-        if !self.peek_one_of(vec![Tok::Semi]) {
-            return e;
-        }
-        match self.iter.next().unwrap() {// won't panic, op_next == true
-            Tok::Semi => Com::Seq(Box::new(e), Box::new(self.parse())),
-            _ => e,
-        }
+    pub fn parse(&mut self) -> Result<Com, Error> {
+        self.parse_exp().and_then(|e| {
+            if self.peek_one_of(vec![Tok::Semi]) {
+                match self.iter.next() {
+                    Some(Tok::Semi) => {
+                        self.parse().and_then(|e2| {
+                            Ok(Com::Seq(Box::new(e), Box::new(e2)))
+                        })
+                    }
+                    _ => Ok(e),
+                }
+            } else {
+                Ok(e)
+            }
+        })
     }
 
     /// Parses the nonterminal <i>exp</i>.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if `self.iter` is empty, or if no exp can be parsed.
-    fn parse_exp(&mut self) -> Com {
-        // want to panic if there is nothing left
-        match self.iter.next().unwrap() {
-            Tok::Skip => Com::Skip,
-            Tok::Var(x) => {
-                self.consume(Tok::Assgn);
-                Com::Assgn(x, Box::new(self.parse_aexp()))
+    fn parse_exp(&mut self) -> Result<Com, Error> {
+        match self.iter.next() {
+            Some(Tok::Skip) => Ok(Com::Skip),
+            Some(Tok::Var(x)) => {
+                self.consume(Tok::Assgn).and(self.parse_aexp()
+                    .and_then(|a| Ok(Com::Assgn(x, Box::new(a)))))
             }
-            Tok::If => {
-                let b = self.parse_bexp();
-                self.consume(Tok::Then);
-                let c1 = self.parse_body();
-                self.consume(Tok::Else);
-                let c2 = self.parse_body();
-                Com::If(Box::new(b), Box::new(c1), Box::new(c2))
+            Some(Tok::If) => {
+                self.parse_bexp().and_then(|b| {
+                    self.consume(Tok::Then)
+                        .and(self.parse_body().and_then(|c1| {
+                            self.consume(Tok::Else)
+                                .and(self.parse_body().and_then(|c2| {
+                                    Ok(Com::If(Box::new(b),
+                                               Box::new(c1),
+                                               Box::new(c2)))
+                                }))
+                        }))
+                })
             }
-            Tok::While => {
-                let b = self.parse_bexp();
-                self.consume(Tok::Do);
-                let c = self.parse_body();
-                Com::While(Box::new(b), Box::new(c))
+            Some(Tok::While) => {
+                self.parse_bexp().and_then(|b| {
+                    self.consume(Tok::Do).and(self.parse_body()
+                        .and_then(|c| Ok(Com::While(Box::new(b), Box::new(c)))))
+                })
             }
-            _ => panic!("No exp to parse."),
+            None => Err(Error::EndOfFile),
+            _ => Err(Error::BadCom),
         }
     }
 
     /// Parses the nonterminal <i>body</i>.
-    fn parse_body(&mut self) -> Com {
+    fn parse_body(&mut self) -> Result<Com, Error> {
         if self.peek_one_of(vec![Tok::LBrace]) {
-            self.consume(Tok::LBrace);
-            let c = self.parse();
-            self.consume(Tok::RBrace);
-            c
+            self.consume(Tok::LBrace).and(self.parse()
+                .and_then(|c| self.consume(Tok::RBrace).and(Ok(c))))
         } else {
             self.parse_exp()
         }
@@ -210,7 +261,7 @@ fn test_num() {
     use self::Aexp::Num;
 
     let mut p = Parser::new(vec![Tok::Num(2)].into_iter());
-    let aexp = p.parse_aexp();
+    let aexp = p.parse_aexp().unwrap();
     assert_eq!(Num(2), aexp);
 }
 
@@ -221,7 +272,7 @@ fn test_add() {
 
     let mut p = Parser::new(vec![Tok::Num(2), Tok::Plus, Tok::Num(3)]
         .into_iter());
-    let aexp = p.parse_aexp();
+    let aexp = p.parse_aexp().unwrap();
     assert_eq!(Add(Box::new(Num(2)), Box::new(Num(3))), aexp);
 }
 
@@ -237,7 +288,7 @@ fn test_parens() {
              Tok::RParen,
              ]
         .into_iter());
-    let aexp = p.parse_aexp();
+    let aexp = p.parse_aexp().unwrap();
     assert_eq!(Add(Box::new(Num(2)), Box::new(Num(3))), aexp);
 }
 
@@ -252,7 +303,7 @@ fn test_complex_aexp_1() {
                                  Tok::Times,
                                  Tok::Var(String::from("x"))]
         .into_iter());
-    let aexp = p.parse_aexp();
+    let aexp = p.parse_aexp().unwrap();
     assert_eq!(Add(Box::new(Num(2)),
                    Box::new(Mul(Box::new(Num(3)),
                                 Box::new(Var(String::from("x")))))),
@@ -270,7 +321,7 @@ fn test_complex_aexp_2() {
                                  Tok::Plus,
                                  Tok::Var(String::from("x"))]
         .into_iter());
-    let aexp = p.parse_aexp();
+    let aexp = p.parse_aexp().unwrap();
     assert_eq!(Add(Box::new(Mul(Box::new(Num(2)), Box::new(Num(3)))),
                    Box::new(Var(String::from("x")))),
                aexp);
@@ -282,7 +333,7 @@ fn test_true() {
     use self::Bexp::True;
 
     let mut p = Parser::new(vec![Tok::True].into_iter());
-    let bexp = p.parse_bexp();
+    let bexp = p.parse_bexp().unwrap();
     assert_eq!(True, bexp);
 }
 
@@ -294,7 +345,7 @@ fn test_less() {
 
     let mut p = Parser::new(vec![Tok::Num(2), Tok::Less, Tok::Num(3)]
         .into_iter());
-    let bexp = p.parse_bexp();
+    let bexp = p.parse_bexp().unwrap();
     assert_eq!(Less(Box::new(Num(2)), Box::new(Num(3))), bexp);
 }
 
@@ -304,7 +355,7 @@ fn test_skip() {
     use self::Com::Skip;
 
     let mut p = Parser::new(vec![Tok::Skip].into_iter());
-    let prog = p.parse();
+    let prog = p.parse().unwrap();
     assert_eq!(Skip, prog);
 }
 
@@ -314,7 +365,7 @@ fn test_seq() {
     use self::Com::{Seq, Skip};
 
     let mut p = Parser::new(vec![Tok::Skip, Tok::Semi, Tok::Skip].into_iter());
-    let prog = p.parse();
+    let prog = p.parse().unwrap();
     assert_eq!(Seq(Box::new(Skip), Box::new(Skip)), prog);
 }
 
@@ -328,6 +379,6 @@ fn test_assgn() {
                                  Tok::Assgn,
                                  Tok::Num(42)]
         .into_iter());
-    let prog = p.parse();
+    let prog = p.parse().unwrap();
     assert_eq!(Assgn(String::from("x"), Box::new(Num(42))), prog);
 }

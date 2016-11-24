@@ -24,12 +24,19 @@ fn main() {
 }
 
 /// Interprets a string as an IMP program and returns the resulting store.
-fn process(s: String) -> Result<Store, interpreter::Error> {
+fn process(s: String) -> Result<Store, String> {
     let mut l = Lexer::new(s.chars());
     let mut p = Parser::new(l.lex().into_iter());
     let mut i = Interpreter::new();
-    let ast = p.parse();
-    i.eval(&ast).and_then(|_| Ok(i.store()))
+    match p.parse() {
+        Err(perr) => Err(format!("{}", perr)),
+        Ok(ast) => {
+            match i.eval(&ast) {
+                Err(ierr) => Err(format!("{}", ierr)),
+                Ok(()) => Ok(i.store()),
+            }
+        }
+    }
 }
 
 #[test]
