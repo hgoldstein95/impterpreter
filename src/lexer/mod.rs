@@ -9,14 +9,10 @@ pub enum Tok {
     Num(i32),
     /// A variable, represented by any non-reserved alphanumeric string.
     Var(String),
-    And,
-    Or,
     True,
     False,
-    Eqs,
     Less,
     Plus,
-    Minus,
     Times,
     Assgn,
     Semi,
@@ -95,8 +91,6 @@ impl<I: Iterator<Item = char>> Lexer<I> {
             "skip" => Tok::Skip,
             "true" => Tok::True,
             "false" => Tok::False,
-            "and" => Tok::And,
-            "or" => Tok::Or,
             "if" => Tok::If,
             "then" => Tok::Then,
             "else" => Tok::Else,
@@ -109,20 +103,18 @@ impl<I: Iterator<Item = char>> Lexer<I> {
     /// Lexes a symbol from the iterator, or discards unrecognized characters.
     fn lex_sym(&mut self) -> Option<Tok> {
         self.iter.next().and_then(|c| match c {
-            '=' => Some(Tok::Eqs),
             '<' => Some(Tok::Less),
             '+' => Some(Tok::Plus),
-            '-' => Some(Tok::Minus),
             '*' => Some(Tok::Times),
-            ':' => {
-                self.iter.next();
-                Some(Tok::Assgn)
-            }
             '(' => Some(Tok::LParen),
             ')' => Some(Tok::RParen),
             '{' => Some(Tok::LBrace),
             '}' => Some(Tok::RBrace),
             ';' => Some(Tok::Semi),
+            ':' => {
+                self.iter.next();
+                Some(Tok::Assgn)
+            }
             _ => None,
         })
     }
@@ -143,7 +135,7 @@ fn test_simple() {
 
 #[test]
 fn test_complex() {
-    let s = String::from("if(3=2)then{hello:=42;world:=42}");
+    let s = String::from("if(3<2)then{hello:=42;world:=42}");
     let mut lx = Lexer::new(s.chars());
     let toks = lx.lex();
     let mut iter = toks.iter();
@@ -151,7 +143,7 @@ fn test_complex() {
     assert_eq!(&Tok::If, iter.next().unwrap());
     assert_eq!(&Tok::LParen, iter.next().unwrap());
     assert_eq!(&Tok::Num(3), iter.next().unwrap());
-    assert_eq!(&Tok::Eqs, iter.next().unwrap());
+    assert_eq!(&Tok::Less, iter.next().unwrap());
     assert_eq!(&Tok::Num(2), iter.next().unwrap());
     assert_eq!(&Tok::RParen, iter.next().unwrap());
     assert_eq!(&Tok::Then, iter.next().unwrap());

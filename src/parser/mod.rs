@@ -2,13 +2,11 @@
 //!
 //! # EBNF Grammar
 //!
-//! aexp ::= term | term + term | term - term
+//! aexp ::= term | term + term
 //! term ::= fact | fact * fact
 //! fact ::= n | var | ( aexp )
 //!
-//! bexp ::= cond | cond and cond
-//! cond ::= rel | rel or rel
-//! rel  ::= true | false | aexp = aexp | aexp < aexp
+//! bexp ::= true | false | aexp < aexp
 //!
 //! com  ::= exp | exp ; com
 //! exp  ::= skip
@@ -29,8 +27,6 @@ pub enum Aexp {
     Var(String),
     /// The sum of two arithmetic expressions.
     Add(Box<Aexp>, Box<Aexp>),
-    /// The difference of two arithmetic expressions.
-    Sub(Box<Aexp>, Box<Aexp>),
     /// The product of two arithmetic expressions.
     Mul(Box<Aexp>, Box<Aexp>),
 }
@@ -42,14 +38,8 @@ pub enum Bexp {
     True,
     /// False.
     False,
-    /// Equation of two arithmetic expressions.
-    Eqs(Box<Aexp>, Box<Aexp>),
     /// Less than relation on arithmetic expressions.
     Less(Box<Aexp>, Box<Aexp>),
-    /// Conjunction of binary expressions.
-    And(Box<Bexp>, Box<Bexp>),
-    /// Disjunction of binary expressions.
-    Or(Box<Bexp>, Box<Bexp>),
 }
 
 /// The `Com` type. Represents a command.
@@ -98,12 +88,11 @@ impl<I: Iterator<Item = Tok>> Parser<I> {
     /// Parses the nonterminal <i>aexp</i>.
     fn parse_aexp(&mut self) -> Aexp {
         let t = self.parse_term();
-        if !self.peek_one_of(vec![Tok::Plus, Tok::Minus]) {
+        if !self.peek_one_of(vec![Tok::Plus]) {
             return t;
         }
         match self.iter.next().unwrap() { // won't panic, op_next == true
             Tok::Plus => Aexp::Add(Box::new(t), Box::new(self.parse_term())),
-            Tok::Minus => Aexp::Sub(Box::new(t), Box::new(self.parse_term())),
             _ => t,
         }
     }
@@ -139,36 +128,12 @@ impl<I: Iterator<Item = Tok>> Parser<I> {
         }
     }
 
-    /// Parses the nonterminal <i>bexp</i>.
-    fn parse_bexp(&mut self) -> Bexp {
-        let c = self.parse_cond();
-        if !self.peek_one_of(vec![Tok::And]) {
-            return c;
-        }
-        match self.iter.next().unwrap() { // won't panic, op_next == true
-            Tok::And => Bexp::And(Box::new(c), Box::new(self.parse_cond())),
-            _ => c,
-        }
-    }
-
-    /// Parses the nonterminal <i>cond</i>.
-    fn parse_cond(&mut self) -> Bexp {
-        let r = self.parse_rel();
-        if !self.peek_one_of(vec![Tok::Or]) {
-            return r;
-        }
-        match self.iter.next().unwrap() { // won't panic, op_next == true
-            Tok::Or => Bexp::Or(Box::new(r), Box::new(self.parse_rel())),
-            _ => r,
-        }
-    }
-
     /// Parses the nonterminal <i>rel</i>.
     ///
     /// # Panics
     ///
     /// Will panic if `self.iter` is empty, or if no rel can be parsed.
-    fn parse_rel(&mut self) -> Bexp {
+    fn parse_bexp(&mut self) -> Bexp {
         if self.peek_one_of(vec![Tok::True, Tok::False]) {
             return match self.iter.next().unwrap() {
                 Tok::True => Bexp::True,
@@ -178,9 +143,8 @@ impl<I: Iterator<Item = Tok>> Parser<I> {
         }
         let a = self.parse_aexp();
         match self.iter.next().unwrap() {
-            Tok::Eqs => Bexp::Eqs(Box::new(a), Box::new(self.parse_aexp())),
             Tok::Less => Bexp::Less(Box::new(a), Box::new(self.parse_aexp())),
-            _ => panic!("Improper relation"),
+            _ => panic!("Improper bexp"),
         }
     }
 
@@ -323,43 +287,15 @@ fn test_true() {
 }
 
 #[test]
-fn test_and() {
-    use lexer::Tok;
-    use self::Bexp::{And, True, False};
-
-    let mut p = Parser::new(vec![Tok::True, Tok::And, Tok::False].into_iter());
-    let bexp = p.parse_bexp();
-    assert_eq!(And(Box::new(True), Box::new(False)), bexp);
-}
-
-#[test]
-fn test_eqs() {
+fn test_less() {
     use lexer::Tok;
     use self::Aexp::Num;
-    use self::Bexp::Eqs;
+    use self::Bexp::Less;
 
-    let mut p = Parser::new(vec![Tok::Num(2), Tok::Eqs, Tok::Num(3)]
+    let mut p = Parser::new(vec![Tok::Num(2), Tok::Less, Tok::Num(3)]
         .into_iter());
     let bexp = p.parse_bexp();
-    assert_eq!(Eqs(Box::new(Num(2)), Box::new(Num(3))), bexp);
-}
-
-#[test]
-fn test_complex_bexp() {
-    use lexer::Tok;
-    use self::Aexp::Num;
-    use self::Bexp::{And, Eqs, False};
-
-    let mut p = Parser::new(vec![Tok::Num(2),
-                                 Tok::Eqs,
-                                 Tok::Num(3),
-                                 Tok::And,
-                                 Tok::False]
-        .into_iter());
-    let bexp = p.parse_bexp();
-    assert_eq!(And(Box::new(Eqs(Box::new(Num(2)), Box::new(Num(3)))),
-                   Box::new(False)),
-               bexp);
+    assert_eq!(Less(Box::new(Num(2)), Box::new(Num(3))), bexp);
 }
 
 #[test]

@@ -34,11 +34,6 @@ impl Interpreter {
                     self.eval_aexp(a2).and_then(|n2| Ok(n1 + n2))
                 })
             }
-            &Sub(ref a1, ref a2) => {
-                self.eval_aexp(a1).and_then(|n1| {
-                    self.eval_aexp(a2).and_then(|n2| Ok(n1 - n2))
-                })
-            }
             &Mul(ref a1, ref a2) => {
                 self.eval_aexp(a1).and_then(|n1| {
                     self.eval_aexp(a2).and_then(|n2| Ok(n1 * n2))
@@ -54,24 +49,9 @@ impl Interpreter {
         match b {
             &True => Ok(true),
             &False => Ok(false),
-            &Eqs(ref a1, ref a2) => {
-                self.eval_aexp(a1).and_then(|n1| {
-                    self.eval_aexp(a2).and_then(|n2| Ok(n1 == n2))
-                })
-            }
             &Less(ref a1, ref a2) => {
                 self.eval_aexp(a1).and_then(|n1| {
                     self.eval_aexp(a2).and_then(|n2| Ok(n1 < n2))
-                })
-            }
-            &And(ref b1, ref b2) => {
-                self.eval_bexp(b1).and_then(|v1| {
-                    self.eval_bexp(b2).and_then(|v2| Ok(v1 && v2))
-                })
-            }
-            &Or(ref b1, ref b2) => {
-                self.eval_bexp(b1).and_then(|v1| {
-                    self.eval_bexp(b2).and_then(|v2| Ok(v1 || v2))
                 })
             }
         }
