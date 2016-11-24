@@ -41,7 +41,8 @@ fn test_if() {
 #[test]
 fn test_while() {
     let store = process(String::from("x := 0; y := 1; while x < 3 do { x := \
-                                      x + 1; y := y * 2 }")).unwrap();
+                                      x + 1; y := y * 2 }"))
+        .unwrap();
     assert_eq!(Some(&3), store.get(&String::from("x")));
     assert_eq!(Some(&8), store.get(&String::from("y")));
 }
