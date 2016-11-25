@@ -1,26 +1,10 @@
 //! The interpreter module.
 
-use std::fmt::{self, Display};
 use std::collections::HashMap;
 use parser::{Aexp, Bexp, Com};
+use error::Error;
 
 pub type Store = HashMap<String, i32>;
-
-/// Error type for `Interpreter`.
-#[derive(Debug)]
-pub enum Error {
-    UnboundVariable(String),
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Error::UnboundVariable(ref s) => {
-                write!(f, "Unbound variable '{}'.", s)
-            }
-        }
-    }
-}
 
 /// The `Interpreter` type. Interprets an AST to a map of values.
 pub struct Interpreter {

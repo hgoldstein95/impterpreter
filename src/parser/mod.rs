@@ -15,39 +15,9 @@
 //!        | while bexp do body
 //! body ::= exp | { com }
 
-use std::fmt::{self, Display};
 use std::iter::Peekable;
 use lexer::Tok;
-
-/// Error type for `Parser`.
-#[derive(Debug)]
-pub enum Error {
-    WrongToken(Tok, Tok),
-    BadAexp,
-    BadBexp,
-    BadCom,
-    EndOfFile,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Error::WrongToken(ref t1, ref t2) => {
-                write!(f,
-                       "Consumed incorrect token. Expected '{:?}' found \
-                        '{:?}'.",
-                       t1,
-                       t2)
-            }
-            Error::BadAexp => write!(f, "Problem while parsing aexp."),
-            Error::BadBexp => write!(f, "Problem while parsing bexp."),
-            Error::BadCom => write!(f, "Problem while parsing com."),
-            Error::EndOfFile => {
-                write!(f, "Reached end of stream while parsing.")
-            }
-        }
-    }
-}
+use error::Error;
 
 /// The `Aexp` type. Represents an arithmetic expression.
 #[derive(Debug, PartialEq)]
@@ -108,6 +78,7 @@ impl<I: Iterator<Item = Tok>> Parser<I> {
     }
 
     /// Consumes the first token in `self.iter`.
+    ///
     /// Returns true if the token is the expected token, false otherwise.
     fn consume(&mut self, t: Tok) -> Result<(), Error> {
         if let Some(other) = self.iter.next() {

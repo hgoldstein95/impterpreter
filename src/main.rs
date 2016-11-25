@@ -3,10 +3,12 @@ use std::io::{self, Write};
 mod lexer;
 mod parser;
 mod interpreter;
+mod error;
 
 use lexer::Lexer;
 use parser::Parser;
 use interpreter::{Interpreter, Store};
+use error::Error;
 
 fn main() {
     println!("Type IMP programs for interpretation.");
@@ -24,24 +26,13 @@ fn main() {
 }
 
 /// Interprets a string as an IMP program and returns the resulting store.
-fn process(s: String) -> Result<Store, String> {
+fn process(s: String) -> Result<Store, Error> {
     let mut i = Interpreter::new();
     let mut l = Lexer::new(s.chars());
-    match l.lex() {
-        Err(lerr) => Err(format!("{}", lerr)),
-        Ok(v) => {
-            let mut p = Parser::new(v.into_iter());
-            match p.parse() {
-                Err(perr) => Err(format!("{}", perr)),
-                Ok(ast) => {
-                    match i.eval(&ast) {
-                        Err(ierr) => Err(format!("{}", ierr)),
-                        Ok(()) => Ok(i.store()),
-                    }
-                }
-            }
-        }
-    }
+    l.lex().and_then(|v| {
+        let mut p = Parser::new(v.into_iter());
+        p.parse().and_then(|ast| i.eval(&ast).and(Ok(i.store())))
+    })
 }
 
 #[test]

@@ -1,23 +1,7 @@
 //! The lexer module.
 
-use std::fmt::{self, Display};
 use std::iter::Peekable;
-
-/// Error type for `Lexer`.
-#[derive(Debug)]
-pub enum Error {
-    LexNumberError(String),
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Error::LexNumberError(ref s) => {
-                write!(f, "Failed to lex number '{}'.", s)
-            }
-        }
-    }
-}
+use error::Error;
 
 /// The `Tok` type. Represents a single token of the IMP language.
 #[derive(Debug, PartialEq)]
